@@ -111,6 +111,7 @@
             <h2>財政部發票</h2>
             <button class="ghost" id="mockInvoiceButton" type="button">模擬匯入</button>
           </div>
+          <p class="helper-text">正式財政部同步尚未開通；目前可下載 App 內已匯入的發票清單。</p>
           <div class="invoice-login">
             <label>
               <span>手機條碼</span>
@@ -121,7 +122,10 @@
               <input id="verifyInput" type="password" placeholder="只保存在本機">
             </label>
           </div>
-          <button class="secondary" id="saveCarrierButton" type="button">保存載具</button>
+          <div class="backup-actions">
+            <button class="secondary" id="saveCarrierButton" type="button">保存載具</button>
+            <button class="ghost backup-import" id="exportInvoicesButton" type="button">下載發票清單</button>
+          </div>
         </div>
         <div class="list" id="invoiceList"></div>
       </section>

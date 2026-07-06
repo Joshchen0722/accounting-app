@@ -251,6 +251,13 @@ select {
   color: var(--muted);
 }
 
+.helper-text {
+  margin: 2px 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .storage-status {
   color: var(--muted);
   font-size: 12px;

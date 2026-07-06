@@ -24,6 +24,7 @@ const els = {
   reportPending: document.getElementById("reportPending"),
   carrierInput: document.getElementById("carrierInput"),
   verifyInput: document.getElementById("verifyInput"),
+  exportInvoicesButton: document.getElementById("exportInvoicesButton"),
   installmentForm: document.getElementById("installmentForm"),
   installmentName: document.getElementById("installmentName"),
   installmentTotal: document.getElementById("installmentTotal"),
@@ -140,6 +141,7 @@ function bindEvents() {
     els.verifyInput.value = "";
     saveAndRender();
   });
+  els.exportInvoicesButton.addEventListener("click", exportInvoicesCsv);
 
   document.getElementById("clearDoneButton").addEventListener("click", () => {
     state.pending = state.pending.filter((item) => !item.done);
@@ -435,6 +437,51 @@ function exportBackup(target = "local") {
   link.remove();
   URL.revokeObjectURL(url);
   render();
+}
+
+function exportInvoicesCsv() {
+  const invoiceRows = state.invoices.map((item) => ({
+    date: item.date,
+    store: item.store,
+    amount: item.amount,
+    category: item.category,
+    status: item.status === "booked" ? "已入帳" : "待確認",
+  }));
+
+  if (!invoiceRows.length) {
+    window.alert("目前沒有可下載的發票資料。");
+    return;
+  }
+
+  const header = ["日期", "店家", "金額", "分類", "狀態"];
+  const rows = invoiceRows.map((item) => [
+    item.date,
+    item.store,
+    item.amount,
+    item.category,
+    item.status,
+  ]);
+  const csv = [header, ...rows]
+    .map((row) => row.map(csvValue).join(","))
+    .join("\r\n");
+  downloadTextFile(`補帳盒發票清單-${isoToday()}.csv`, `\ufeff${csv}`, "text/csv;charset=utf-8");
+}
+
+function downloadTextFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvValue(value) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 function importBackup(event) {
