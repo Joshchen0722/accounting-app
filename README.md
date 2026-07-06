@@ -36,4 +36,6 @@
 
 ## 尚未串接
 
-財政部個人電子發票自動同步尚未開通。正式串接需要確認財政部可用介面、登入/驗證方式、授權保存與資料安全。
+GitHub Pages 前端已預留電子發票同步入口。正式同步需要部署 `worker/einvoice-worker.js`，並在 Worker 設定合法的 `EINVOICE_APP_ID`。
+
+財政部 API 不能直接由 GitHub Pages 呼叫；需要後端中介處理 CORS 與 appID 保護。

@@ -22,8 +22,11 @@ const els = {
   reportExpense: document.getElementById("reportExpense"),
   reportInvoices: document.getElementById("reportInvoices"),
   reportPending: document.getElementById("reportPending"),
+  einvoiceApiInput: document.getElementById("einvoiceApiInput"),
   carrierInput: document.getElementById("carrierInput"),
   verifyInput: document.getElementById("verifyInput"),
+  syncEinvoiceButton: document.getElementById("syncEinvoiceButton"),
+  syncHelpButton: document.getElementById("syncHelpButton"),
   exportInvoicesButton: document.getElementById("exportInvoicesButton"),
   importInvoicesButton: document.getElementById("importInvoicesButton"),
   openEinvoiceButton: document.getElementById("openEinvoiceButton"),
@@ -55,6 +58,7 @@ function init() {
   }).format(new Date());
 
   els.carrierInput.value = state.settings.carrier || "";
+  els.einvoiceApiInput.value = state.settings.einvoiceApiUrl || "";
   els.invoiceDateInput.value = isoToday();
   bindEvents();
   render();
@@ -127,9 +131,14 @@ function bindEvents() {
 
   document.getElementById("saveCarrierButton").addEventListener("click", () => {
     state.settings.carrier = els.carrierInput.value.trim();
+    state.settings.einvoiceApiUrl = normalizeApiUrl(els.einvoiceApiInput.value);
     state.settings.hasVerifyCode = els.verifyInput.value.length > 0;
     els.verifyInput.value = "";
     saveAndRender();
+  });
+  els.syncEinvoiceButton.addEventListener("click", syncEinvoice);
+  els.syncHelpButton.addEventListener("click", () => {
+    window.alert("正式同步需要先部署 Cloudflare Worker，並設定財政部電子發票 appID。完成後把 Worker 網址填在「同步服務網址」。");
   });
   els.exportInvoicesButton.addEventListener("click", exportInvoicesCsv);
   els.importInvoicesButton.addEventListener("click", () => els.invoiceFileInput.click());
@@ -407,6 +416,61 @@ function confirmInvoice(id) {
   saveAndRender();
 }
 
+async function syncEinvoice() {
+  const apiUrl = normalizeApiUrl(els.einvoiceApiInput.value || state.settings.einvoiceApiUrl);
+  const barCode = els.carrierInput.value.trim() || state.settings.carrier;
+  const verifyCode = els.verifyInput.value.trim();
+  if (!apiUrl) {
+    els.einvoiceApiInput.focus();
+    window.alert("請先填入同步服務網址。");
+    return;
+  }
+  if (!barCode) {
+    els.carrierInput.focus();
+    window.alert("請先填入手機條碼。");
+    return;
+  }
+  if (!verifyCode) {
+    els.verifyInput.focus();
+    window.alert("同步時需要輸入驗證碼；為了安全，App 不會保存驗證碼。");
+    return;
+  }
+
+  els.syncEinvoiceButton.disabled = true;
+  els.syncEinvoiceButton.textContent = "同步中";
+  try {
+    const response = await fetch(`${apiUrl}/api/invoices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        barCode,
+        verifyCode,
+        startDate: firstDayOfCurrentMonth(),
+        endDate: isoToday(),
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.message || payload.msg || "同步失敗");
+    }
+    const invoices = normalizeEinvoicePayload(payload);
+    const existingKeys = new Set(state.invoices.map(invoiceKey));
+    const fresh = invoices.filter((item) => !existingKeys.has(invoiceKey(item)));
+    state.invoices.unshift(...fresh);
+    state.settings.carrier = barCode;
+    state.settings.einvoiceApiUrl = apiUrl;
+    state.settings.lastEinvoiceSyncAt = new Date().toISOString();
+    els.verifyInput.value = "";
+    saveAndRender();
+    window.alert(`同步完成，新增 ${fresh.length} 筆發票。`);
+  } catch (error) {
+    window.alert(`電子發票同步失敗：${error.message}`);
+  } finally {
+    els.syncEinvoiceButton.disabled = false;
+    els.syncEinvoiceButton.textContent = "同步電子發票";
+  }
+}
+
 function payInstallment(id) {
   const item = state.installments.find((entry) => entry.id === id);
   if (!item || item.paid >= item.months) return;
@@ -511,6 +575,32 @@ function exportInvoicesCsv() {
     .map((row) => row.map(csvValue).join(","))
     .join("\r\n");
   downloadTextFile(`補帳盒發票清單-${isoToday()}.csv`, `\ufeff${csv}`, "text/csv;charset=utf-8");
+}
+
+function normalizeEinvoicePayload(payload) {
+  const source = payload.invoices || payload.details || payload.data || payload.raw?.details || [];
+  if (!Array.isArray(source)) return [];
+  return source.map((item) => {
+    const store = item.sellerName || item.seller || item.store || item.businessName || item.sellerAddress || "電子發票";
+    const amount = parseAmount(item.amount || item.invAmount || item.totalAmount || item.salesAmount);
+    const date = normalizeDate(item.invDate || item.date || item.invoiceDate);
+    const number = item.invNum || item.invoiceNumber || item.number || "";
+    if (!date || amount <= 0) return null;
+    return {
+      id: uid(),
+      store: number ? `${store} ${number}` : store,
+      amount,
+      category: "其他",
+      date,
+      status: "new",
+      source: "einvoice",
+      invoiceNumber: number,
+    };
+  }).filter(Boolean);
+}
+
+function invoiceKey(item) {
+  return [item.date, item.invoiceNumber || item.store, item.amount].join("|");
 }
 
 function importInvoicesCsv(event) {
@@ -687,6 +777,15 @@ function normalizeDate(value) {
 
 function isoToday() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function firstDayOfCurrentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function normalizeApiUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
 }
 
 function formatDateTime(value) {

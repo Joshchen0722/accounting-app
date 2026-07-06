@@ -111,6 +111,10 @@
             <h2>財政部發票</h2>
           </div>
           <p class="helper-text">正式財政部同步尚未開通；目前可手動登錄、匯入 CSV、下載 App 內的發票清單。</p>
+          <label>
+            <span>同步服務網址</span>
+            <input id="einvoiceApiInput" placeholder="https://你的-worker.workers.dev">
+          </label>
           <div class="invoice-login">
             <label>
               <span>手機條碼</span>
@@ -123,11 +127,15 @@
           </div>
           <div class="backup-actions">
             <button class="secondary" id="saveCarrierButton" type="button">保存載具</button>
-            <button class="ghost backup-import" id="exportInvoicesButton" type="button">下載發票清單</button>
+            <button class="secondary" id="syncEinvoiceButton" type="button">同步電子發票</button>
           </div>
           <div class="backup-actions cloud-actions">
+            <button class="ghost backup-import" id="exportInvoicesButton" type="button">下載發票清單</button>
             <button class="ghost backup-import" id="importInvoicesButton" type="button">匯入發票 CSV</button>
+          </div>
+          <div class="backup-actions cloud-actions">
             <button class="ghost backup-import" id="openEinvoiceButton" type="button">開啟財政部平台</button>
+            <button class="ghost backup-import" id="syncHelpButton" type="button">串接說明</button>
             <input id="invoiceFileInput" type="file" accept=".csv,text/csv" hidden>
           </div>
         </div>
