@@ -13,7 +13,7 @@ GitHub Pages 不能直接呼叫財政部電子發票 API，因為財政部 API �
 
 1. 到 Cloudflare 建立 Worker。
 2. 將 `einvoice-worker.js` 貼到 Worker 程式碼。
-3. 在 Worker 的 Variables / Secrets 加入：
+3. 在 Worker 的 Variables / Secrets 或 Secrets Store 加入：
    - `EINVOICE_APP_ID`
    - 值填財政部核發或可合法使用的 appID
 4. 部署後取得 Worker 網址，例如：
@@ -25,3 +25,5 @@ GitHub Pages 不能直接呼叫財政部電子發票 API，因為財政部 API �
 ## 注意
 
 目前 Worker 只查詢每月發票清單。若要抓每張發票的明細品項，需要再串接財政部明細查詢 action。
+
+財政部「電子發票開放資料 Open API」不是個人發票下載 API。它的網址是 `https://dataset.einvoice.nat.gov.tw/ods/portal/`，用途是公開統計資料與營業人清單；個人手機條碼載具查詢仍需使用 `https://api.einvoice.nat.gov.tw/PB2CAPIVAN/invapp/InvApp`，並設定有效的 `EINVOICE_APP_ID`。
