@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2f7d68">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="補帳盒">
+  <title>補帳盒</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="date-label" id="todayLabel">今天</p>
+        <h1>補帳盒</h1>
+      </div>
+      <button class="icon-button" id="seedButton" type="button" aria-label="加入範例資料">+</button>
+    </header>
+
+    <main>
+      <section class="summary-band" aria-label="本月摘要">
+        <div>
+          <span>本月可用</span>
+          <strong id="monthBalance">$0</strong>
+        </div>
+        <div>
+          <span>待補帳</span>
+          <strong id="pendingCount">0</strong>
+        </div>
+        <div>
+          <span>分期</span>
+          <strong id="installmentDue">$0</strong>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="主要功能">
+        <button class="tab active" data-view="quick" type="button">快記</button>
+        <button class="tab" data-view="inbox" type="button">待補</button>
+        <button class="tab" data-view="invoice" type="button">發票</button>
+        <button class="tab" data-view="plan" type="button">分期</button>
+        <button class="tab" data-view="report" type="button">月報</button>
+      </nav>
+
+      <section class="view active" id="view-quick">
+        <form class="panel" id="quickForm">
+          <div class="segmented">
+            <button class="segment active" data-kind="expense" type="button">支出</button>
+            <button class="segment" data-kind="income" type="button">收入</button>
+            <button class="segment" data-kind="pending" type="button">先記</button>
+          </div>
+          <label>
+            <span>金額</span>
+            <input id="amountInput" inputmode="decimal" placeholder="例如 120">
+          </label>
+          <label>
+            <span>內容</span>
+            <input id="noteInput" placeholder="例如 全聯、晚餐、停車">
+          </label>
+          <div class="grid two">
+            <label>
+              <span>分類</span>
+              <select id="categoryInput">
+                <option>餐飲</option>
+                <option>交通</option>
+                <option>購物</option>
+                <option>居家</option>
+                <option>旅宿</option>
+                <option>薪資</option>
+                <option>其他</option>
+              </select>
+            </label>
+            <label>
+              <span>付款</span>
+              <select id="methodInput">
+                <option>信用卡</option>
+                <option>LINE Pay</option>
+                <option>街口</option>
+                <option>轉帳</option>
+                <option>現金</option>
+                <option>未定</option>
+              </select>
+            </label>
+          </div>
+          <button class="primary" type="submit">加入</button>
+        </form>
+
+        <section class="shortcut-grid" aria-label="常用項目">
+          <button data-template="午餐,餐飲,信用卡,120" type="button">午餐</button>
+          <button data-template="咖啡,餐飲,LINE Pay,75" type="button">咖啡</button>
+          <button data-template="停車,交通,信用卡,60" type="button">停車</button>
+          <button data-template="網購,購物,信用卡," type="button">網購</button>
+        </section>
+      </section>
+
+      <section class="view" id="view-inbox">
+        <div class="section-head">
+          <h2>待補帳</h2>
+          <button class="ghost" id="clearDoneButton" type="button">清已完成</button>
+        </div>
+        <div class="list" id="pendingList"></div>
+      </section>
+
+      <section class="view" id="view-invoice">
+        <div class="panel">
+          <div class="section-head compact">
+            <h2>財政部發票</h2>
+            <button class="ghost" id="mockInvoiceButton" type="button">模擬匯入</button>
+          </div>
+          <div class="invoice-login">
+            <label>
+              <span>手機條碼</span>
+              <input id="carrierInput" placeholder="/ABCD123">
+            </label>
+            <label>
+              <span>驗證碼</span>
+              <input id="verifyInput" type="password" placeholder="只保存在本機">
+            </label>
+          </div>
+          <button class="secondary" id="saveCarrierButton" type="button">保存載具</button>
+        </div>
+        <div class="list" id="invoiceList"></div>
+      </section>
+
+      <section class="view" id="view-plan">
+        <form class="panel" id="installmentForm">
+          <h2>新增分期</h2>
+          <label>
+            <span>名稱</span>
+            <input id="installmentName" placeholder="例如 手機、旅費">
+          </label>
+          <div class="grid two">
+            <label>
+              <span>總額</span>
+              <input id="installmentTotal" inputmode="decimal" placeholder="24000">
+            </label>
+            <label>
+              <span>期數</span>
+              <input id="installmentMonths" inputmode="numeric" placeholder="12">
+            </label>
+          </div>
+          <button class="primary" type="submit">建立分期</button>
+        </form>
+        <div class="list" id="installmentList"></div>
+      </section>
+
+      <section class="view" id="view-report">
+        <div class="report-grid">
+          <div class="metric">
+            <span>收入</span>
+            <strong id="reportIncome">$0</strong>
+          </div>
+          <div class="metric">
+            <span>支出</span>
+            <strong id="reportExpense">$0</strong>
+          </div>
+          <div class="metric">
+            <span>發票待確認</span>
+            <strong id="reportInvoices">0</strong>
+          </div>
+          <div class="metric">
+            <span>待補帳</span>
+            <strong id="reportPending">0</strong>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>分類</h2>
+          <div id="categoryBars" class="bars"></div>
+        </div>
+        <div class="panel">
+          <h2>最近紀錄</h2>
+          <div class="list tight" id="transactionList"></div>
+        </div>
+        <div class="panel">
+          <div class="section-head compact">
+            <h2>資料儲存</h2>
+            <span class="storage-status" id="storageStatus">已自動存在本機</span>
+          </div>
+          <div class="backup-actions">
+            <button class="secondary" id="exportBackupButton" type="button">下載備份</button>
+            <button class="ghost backup-import" id="importBackupButton" type="button">匯入備份</button>
+            <input id="backupFileInput" type="file" accept="application/json,.json" hidden>
+          </div>
+          <div class="backup-actions cloud-actions">
+            <button class="secondary" id="exportDriveBackupButton" type="button">下載雲端備份</button>
+            <button class="ghost backup-import" id="openDriveButton" type="button">開啟 Google Drive</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="emptyTemplate">
+    <div class="empty">目前沒有資料</div>
+  </template>
+
+  <script src="app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol !== "file:") {
+      navigator.serviceWorker.register("service-worker.js").catch(() => {});
+    }
+  </script>
+</body>
+</html>
