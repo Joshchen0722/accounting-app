@@ -377,6 +377,12 @@ select {
   color: #fff;
 }
 
+.small-action.danger {
+  border-color: #edd4d4;
+  background: #fff6f6;
+  color: var(--red);
+}
+
 .report-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

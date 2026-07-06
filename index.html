@@ -109,9 +109,8 @@
         <div class="panel">
           <div class="section-head compact">
             <h2>財政部發票</h2>
-            <button class="ghost" id="mockInvoiceButton" type="button">模擬匯入</button>
           </div>
-          <p class="helper-text">正式財政部同步尚未開通；目前可下載 App 內已匯入的發票清單。</p>
+          <p class="helper-text">正式財政部同步尚未開通；目前可手動登錄、匯入 CSV、下載 App 內的發票清單。</p>
           <div class="invoice-login">
             <label>
               <span>手機條碼</span>
@@ -126,7 +125,42 @@
             <button class="secondary" id="saveCarrierButton" type="button">保存載具</button>
             <button class="ghost backup-import" id="exportInvoicesButton" type="button">下載發票清單</button>
           </div>
+          <div class="backup-actions cloud-actions">
+            <button class="ghost backup-import" id="importInvoicesButton" type="button">匯入發票 CSV</button>
+            <button class="ghost backup-import" id="openEinvoiceButton" type="button">開啟財政部平台</button>
+            <input id="invoiceFileInput" type="file" accept=".csv,text/csv" hidden>
+          </div>
         </div>
+
+        <form class="panel" id="invoiceForm">
+          <h2>新增發票</h2>
+          <div class="grid two">
+            <label>
+              <span>日期</span>
+              <input id="invoiceDateInput" type="date">
+            </label>
+            <label>
+              <span>金額</span>
+              <input id="invoiceAmountInput" inputmode="decimal" placeholder="例如 368">
+            </label>
+          </div>
+          <label>
+            <span>店家</span>
+            <input id="invoiceStoreInput" placeholder="例如 全聯福利中心">
+          </label>
+          <label>
+            <span>分類</span>
+            <select id="invoiceCategoryInput">
+              <option>餐飲</option>
+              <option>交通</option>
+              <option>購物</option>
+              <option>居家</option>
+              <option>旅宿</option>
+              <option>其他</option>
+            </select>
+          </label>
+          <button class="primary" type="submit">加入發票</button>
+        </form>
         <div class="list" id="invoiceList"></div>
       </section>
 

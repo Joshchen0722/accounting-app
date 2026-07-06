@@ -25,6 +25,14 @@ const els = {
   carrierInput: document.getElementById("carrierInput"),
   verifyInput: document.getElementById("verifyInput"),
   exportInvoicesButton: document.getElementById("exportInvoicesButton"),
+  importInvoicesButton: document.getElementById("importInvoicesButton"),
+  openEinvoiceButton: document.getElementById("openEinvoiceButton"),
+  invoiceFileInput: document.getElementById("invoiceFileInput"),
+  invoiceForm: document.getElementById("invoiceForm"),
+  invoiceDateInput: document.getElementById("invoiceDateInput"),
+  invoiceStoreInput: document.getElementById("invoiceStoreInput"),
+  invoiceAmountInput: document.getElementById("invoiceAmountInput"),
+  invoiceCategoryInput: document.getElementById("invoiceCategoryInput"),
   installmentForm: document.getElementById("installmentForm"),
   installmentName: document.getElementById("installmentName"),
   installmentTotal: document.getElementById("installmentTotal"),
@@ -47,6 +55,7 @@ function init() {
   }).format(new Date());
 
   els.carrierInput.value = state.settings.carrier || "";
+  els.invoiceDateInput.value = isoToday();
   bindEvents();
   render();
 }
@@ -116,25 +125,6 @@ function bindEvents() {
     saveAndRender();
   });
 
-  document.getElementById("mockInvoiceButton").addEventListener("click", () => {
-    const examples = [
-      ["全聯福利中心", 368, "購物"],
-      ["統一超商", 89, "餐飲"],
-      ["台灣中油", 1000, "交通"],
-    ];
-    examples.forEach(([store, amount, category]) => {
-      state.invoices.unshift({
-        id: uid(),
-        store,
-        amount,
-        category,
-        date: isoToday(),
-        status: "new",
-      });
-    });
-    saveAndRender();
-  });
-
   document.getElementById("saveCarrierButton").addEventListener("click", () => {
     state.settings.carrier = els.carrierInput.value.trim();
     state.settings.hasVerifyCode = els.verifyInput.value.length > 0;
@@ -142,6 +132,37 @@ function bindEvents() {
     saveAndRender();
   });
   els.exportInvoicesButton.addEventListener("click", exportInvoicesCsv);
+  els.importInvoicesButton.addEventListener("click", () => els.invoiceFileInput.click());
+  els.invoiceFileInput.addEventListener("change", importInvoicesCsv);
+  els.openEinvoiceButton.addEventListener("click", () => {
+    window.open("https://www.einvoice.nat.gov.tw/", "_blank", "noopener");
+  });
+
+  els.invoiceForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const store = els.invoiceStoreInput.value.trim();
+    const amount = parseAmount(els.invoiceAmountInput.value);
+    const date = els.invoiceDateInput.value || isoToday();
+    if (!store || amount <= 0) {
+      if (!store) els.invoiceStoreInput.focus();
+      else els.invoiceAmountInput.focus();
+      return;
+    }
+
+    state.invoices.unshift({
+      id: uid(),
+      store,
+      amount,
+      category: els.invoiceCategoryInput.value,
+      date,
+      status: "new",
+      source: "manual",
+    });
+    els.invoiceForm.reset();
+    els.invoiceDateInput.value = isoToday();
+    els.invoiceCategoryInput.value = "餐飲";
+    saveAndRender();
+  });
 
   document.getElementById("clearDoneButton").addEventListener("click", () => {
     state.pending = state.pending.filter((item) => !item.done);
@@ -224,12 +245,16 @@ function renderPending() {
       <div class="actions">
         <div class="amount expense">${item.amount > 0 ? money(item.amount) : "未填"}</div>
         <button class="small-action primary-mini" data-confirm-pending="${item.id}" type="button">入帳</button>
+        <button class="small-action danger" data-delete-pending="${item.id}" type="button">刪除</button>
       </div>
     </article>
   `).join("");
 
   els.pendingList.querySelectorAll("[data-confirm-pending]").forEach((button) => {
     button.addEventListener("click", () => confirmPending(button.dataset.confirmPending));
+  });
+  els.pendingList.querySelectorAll("[data-delete-pending]").forEach((button) => {
+    button.addEventListener("click", () => deleteById("pending", button.dataset.deletePending));
   });
 }
 
@@ -249,12 +274,16 @@ function renderInvoices() {
       <div class="actions">
         <div class="amount expense">${money(item.amount)}</div>
         <button class="small-action primary-mini" data-confirm-invoice="${item.id}" type="button">確認</button>
+        <button class="small-action danger" data-delete-invoice="${item.id}" type="button">刪除</button>
       </div>
     </article>
   `).join("");
 
   els.invoiceList.querySelectorAll("[data-confirm-invoice]").forEach((button) => {
     button.addEventListener("click", () => confirmInvoice(button.dataset.confirmInvoice));
+  });
+  els.invoiceList.querySelectorAll("[data-delete-invoice]").forEach((button) => {
+    button.addEventListener("click", () => deleteById("invoices", button.dataset.deleteInvoice));
   });
 }
 
@@ -276,6 +305,7 @@ function renderInstallments() {
         <div class="actions">
           <div class="amount expense">${money(monthly)}</div>
           <button class="small-action" data-pay-installment="${item.id}" type="button">付一期</button>
+          <button class="small-action danger" data-delete-installment="${item.id}" type="button">刪除</button>
         </div>
       </article>
     `;
@@ -283,6 +313,9 @@ function renderInstallments() {
 
   els.installmentList.querySelectorAll("[data-pay-installment]").forEach((button) => {
     button.addEventListener("click", () => payInstallment(button.dataset.payInstallment));
+  });
+  els.installmentList.querySelectorAll("[data-delete-installment]").forEach((button) => {
+    button.addEventListener("click", () => deleteById("installments", button.dataset.deleteInstallment));
   });
 }
 
@@ -318,9 +351,15 @@ function renderReport() {
         <div class="item-title"><span>${escapeHtml(item.note)}</span></div>
         <div class="item-sub">${item.date} · ${escapeHtml(item.category)} · ${escapeHtml(item.method)}</div>
       </div>
-      <div class="amount ${item.kind}">${item.kind === "income" ? "+" : "-"}${money(item.amount)}</div>
+      <div class="actions">
+        <div class="amount ${item.kind}">${item.kind === "income" ? "+" : "-"}${money(item.amount)}</div>
+        <button class="small-action danger" data-delete-transaction="${item.id}" type="button">刪除</button>
+      </div>
     </article>
   `).join("");
+  els.transactionList.querySelectorAll("[data-delete-transaction]").forEach((button) => {
+    button.addEventListener("click", () => deleteById("transactions", button.dataset.deleteTransaction));
+  });
 }
 
 function renderStorageInfo() {
@@ -381,6 +420,13 @@ function payInstallment(id) {
     method: "信用卡",
     date: isoToday(),
   });
+  saveAndRender();
+}
+
+function deleteById(collection, id) {
+  if (!Array.isArray(state[collection])) return;
+  if (!window.confirm("確定刪除這筆資料嗎？")) return;
+  state[collection] = state[collection].filter((item) => item.id !== id);
   saveAndRender();
 }
 
@@ -467,6 +513,90 @@ function exportInvoicesCsv() {
   downloadTextFile(`補帳盒發票清單-${isoToday()}.csv`, `\ufeff${csv}`, "text/csv;charset=utf-8");
 }
 
+function importInvoicesCsv(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const rows = parseCsv(String(reader.result || ""));
+      if (rows.length < 2) throw new Error("empty csv");
+      const header = rows[0].map((cell) => cell.trim());
+      const imported = rows.slice(1)
+        .map((row) => invoiceFromCsvRow(header, row))
+        .filter(Boolean);
+      if (!imported.length) throw new Error("no invoice rows");
+      state.invoices.unshift(...imported);
+      saveAndRender();
+      window.alert(`已匯入 ${imported.length} 筆發票。`);
+    } catch {
+      window.alert("無法匯入。請使用欄位包含「日期、店家、金額」的 CSV。");
+    }
+  };
+  reader.readAsText(file, "utf-8");
+}
+
+function invoiceFromCsvRow(header, row) {
+  const pick = (...names) => {
+    const index = header.findIndex((item) => names.includes(item));
+    return index >= 0 ? row[index] : "";
+  };
+  const date = normalizeDate(pick("日期", "發票日期", "消費日期", "date"));
+  const store = pick("店家", "商店", "營業人", "賣方", "store").trim();
+  const amount = parseAmount(pick("金額", "總額", "消費金額", "amount"));
+  const category = pick("分類", "category").trim() || "其他";
+  if (!date || !store || amount <= 0) return null;
+  return {
+    id: uid(),
+    store,
+    amount,
+    category,
+    date,
+    status: "new",
+    source: "csv",
+  };
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let quoted = false;
+  const normalized = text.replace(/^\ufeff/, "");
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    const next = normalized[index + 1];
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        value += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        value += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === ",") {
+      row.push(value);
+      value = "";
+    } else if (char === "\n") {
+      row.push(value.replace(/\r$/, ""));
+      rows.push(row);
+      row = [];
+      value = "";
+    } else {
+      value += char;
+    }
+  }
+  row.push(value.replace(/\r$/, ""));
+  rows.push(row);
+  return rows.filter((items) => items.some((item) => item.trim() !== ""));
+}
+
 function downloadTextFile(filename, content, type) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -544,6 +674,15 @@ function uid() {
 function parseAmount(value) {
   const amount = Number.parseFloat(String(value || "").replace(/,/g, ""));
   return Number.isFinite(amount) ? Math.round(amount) : 0;
+}
+
+function normalizeDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const match = text.match(/^(\d{4})[/-]?(\d{1,2})[/-]?(\d{1,2})$/);
+  if (!match) return text;
+  const [, year, month, day] = match;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
 function isoToday() {
