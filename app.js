@@ -22,11 +22,6 @@ const els = {
   reportExpense: document.getElementById("reportExpense"),
   reportInvoices: document.getElementById("reportInvoices"),
   reportPending: document.getElementById("reportPending"),
-  einvoiceApiInput: document.getElementById("einvoiceApiInput"),
-  carrierInput: document.getElementById("carrierInput"),
-  verifyInput: document.getElementById("verifyInput"),
-  syncEinvoiceButton: document.getElementById("syncEinvoiceButton"),
-  syncHelpButton: document.getElementById("syncHelpButton"),
   exportInvoicesButton: document.getElementById("exportInvoicesButton"),
   importInvoicesButton: document.getElementById("importInvoicesButton"),
   openEinvoiceButton: document.getElementById("openEinvoiceButton"),
@@ -57,8 +52,6 @@ function init() {
     weekday: "short",
   }).format(new Date());
 
-  els.carrierInput.value = state.settings.carrier || "";
-  els.einvoiceApiInput.value = state.settings.einvoiceApiUrl || "";
   els.invoiceDateInput.value = isoToday();
   bindEvents();
   render();
@@ -129,20 +122,9 @@ function bindEvents() {
     saveAndRender();
   });
 
-  document.getElementById("saveCarrierButton").addEventListener("click", () => {
-    state.settings.carrier = els.carrierInput.value.trim();
-    state.settings.einvoiceApiUrl = normalizeApiUrl(els.einvoiceApiInput.value);
-    state.settings.hasVerifyCode = els.verifyInput.value.length > 0;
-    els.verifyInput.value = "";
-    saveAndRender();
-  });
-  els.syncEinvoiceButton.addEventListener("click", syncEinvoice);
-  els.syncHelpButton.addEventListener("click", () => {
-    window.alert("正式同步需要先部署 Cloudflare Worker，並設定財政部電子發票 appID。完成後把 Worker 網址填在「同步服務網址」。");
-  });
   els.exportInvoicesButton.addEventListener("click", exportInvoicesCsv);
   els.importInvoicesButton.addEventListener("click", () => els.invoiceFileInput.click());
-  els.invoiceFileInput.addEventListener("change", importInvoicesCsv);
+  els.invoiceFileInput.addEventListener("change", importInvoicesFile);
   els.openEinvoiceButton.addEventListener("click", () => {
     window.open("https://www.einvoice.nat.gov.tw/", "_blank", "noopener");
   });
@@ -166,6 +148,7 @@ function bindEvents() {
       date,
       status: "new",
       source: "manual",
+      invoiceNumber: "",
     });
     els.invoiceForm.reset();
     els.invoiceDateInput.value = isoToday();
@@ -416,61 +399,6 @@ function confirmInvoice(id) {
   saveAndRender();
 }
 
-async function syncEinvoice() {
-  const apiUrl = normalizeApiUrl(els.einvoiceApiInput.value || state.settings.einvoiceApiUrl);
-  const barCode = els.carrierInput.value.trim() || state.settings.carrier;
-  const verifyCode = els.verifyInput.value.trim();
-  if (!apiUrl) {
-    els.einvoiceApiInput.focus();
-    window.alert("請先填入同步服務網址。");
-    return;
-  }
-  if (!barCode) {
-    els.carrierInput.focus();
-    window.alert("請先填入手機條碼。");
-    return;
-  }
-  if (!verifyCode) {
-    els.verifyInput.focus();
-    window.alert("同步時需要輸入驗證碼；為了安全，App 不會保存驗證碼。");
-    return;
-  }
-
-  els.syncEinvoiceButton.disabled = true;
-  els.syncEinvoiceButton.textContent = "同步中";
-  try {
-    const response = await fetch(`${apiUrl}/api/invoices`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        barCode,
-        verifyCode,
-        startDate: firstDayOfCurrentMonth(),
-        endDate: isoToday(),
-      }),
-    });
-    const payload = await response.json();
-    if (!response.ok || payload.ok === false) {
-      throw new Error(payload.message || payload.msg || "同步失敗");
-    }
-    const invoices = normalizeEinvoicePayload(payload);
-    const existingKeys = new Set(state.invoices.map(invoiceKey));
-    const fresh = invoices.filter((item) => !existingKeys.has(invoiceKey(item)));
-    state.invoices.unshift(...fresh);
-    state.settings.carrier = barCode;
-    state.settings.einvoiceApiUrl = apiUrl;
-    state.settings.lastEinvoiceSyncAt = new Date().toISOString();
-    els.verifyInput.value = "";
-    saveAndRender();
-    window.alert(`同步完成，新增 ${fresh.length} 筆發票。`);
-  } catch (error) {
-    window.alert(`電子發票同步失敗：${error.message}`);
-  } finally {
-    els.syncEinvoiceButton.disabled = false;
-    els.syncEinvoiceButton.textContent = "同步電子發票";
-  }
-}
-
 function payInstallment(id) {
   const item = state.installments.find((entry) => entry.id === id);
   if (!item || item.paid >= item.months) return;
@@ -552,10 +480,12 @@ function exportBackup(target = "local") {
 function exportInvoicesCsv() {
   const invoiceRows = state.invoices.map((item) => ({
     date: item.date,
+    invoiceNumber: item.invoiceNumber || "",
     store: item.store,
     amount: item.amount,
     category: item.category,
     status: item.status === "booked" ? "已入帳" : "待確認",
+    source: item.source || "",
   }));
 
   if (!invoiceRows.length) {
@@ -563,13 +493,15 @@ function exportInvoicesCsv() {
     return;
   }
 
-  const header = ["日期", "店家", "金額", "分類", "狀態"];
+  const header = ["日期", "發票號碼", "店家", "金額", "分類", "狀態", "來源"];
   const rows = invoiceRows.map((item) => [
     item.date,
+    item.invoiceNumber,
     item.store,
     item.amount,
     item.category,
     item.status,
+    item.source,
   ]);
   const csv = [header, ...rows]
     .map((row) => row.map(csvValue).join(","))
@@ -600,10 +532,12 @@ function normalizeEinvoicePayload(payload) {
 }
 
 function invoiceKey(item) {
-  return [item.date, item.invoiceNumber || item.store, item.amount].join("|");
+  const number = normalizeInvoiceNumber(item.invoiceNumber);
+  if (number) return `number:${number}`;
+  return [item.date, normalizeComparableText(item.store), item.amount].join("|");
 }
 
-function importInvoicesCsv(event) {
+function importInvoicesFile(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
   if (!file) return;
@@ -611,54 +545,93 @@ function importInvoicesCsv(event) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const rows = parseCsv(String(reader.result || ""));
+      const rows = parseDelimitedFile(decodeInvoiceFile(reader.result));
       if (rows.length < 2) throw new Error("empty csv");
       const header = rows[0].map((cell) => cell.trim());
       const imported = rows.slice(1)
         .map((row) => invoiceFromCsvRow(header, row))
         .filter(Boolean);
       if (!imported.length) throw new Error("no invoice rows");
-      state.invoices.unshift(...imported);
+      const existingKeys = new Set(state.invoices.map(invoiceKey));
+      const fresh = [];
+      imported.forEach((item) => {
+        const key = invoiceKey(item);
+        if (existingKeys.has(key)) return;
+        existingKeys.add(key);
+        fresh.push(item);
+      });
+      state.invoices.unshift(...fresh);
+      state.settings.lastInvoiceImportAt = new Date().toISOString();
       saveAndRender();
-      window.alert(`已匯入 ${imported.length} 筆發票。`);
+      window.alert(`匯入完成：新增 ${fresh.length} 筆，略過重複 ${imported.length - fresh.length} 筆。`);
     } catch {
-      window.alert("無法匯入。請使用欄位包含「日期、店家、金額」的 CSV。");
+      window.alert("無法匯入。請使用財政部下載的 CSV，或欄位包含「日期、店家、金額」的文字檔。");
     }
   };
-  reader.readAsText(file, "utf-8");
+  reader.readAsArrayBuffer(file);
 }
 
 function invoiceFromCsvRow(header, row) {
-  const pick = (...names) => {
-    const index = header.findIndex((item) => names.includes(item));
+  const pick = (names) => {
+    const normalizedNames = names.map(normalizeHeader);
+    const normalizedHeader = header.map(normalizeHeader);
+    const index = normalizedHeader.findIndex((item) => normalizedNames.includes(item));
     return index >= 0 ? row[index] : "";
   };
-  const date = normalizeDate(pick("日期", "發票日期", "消費日期", "date"));
-  const store = pick("店家", "商店", "營業人", "賣方", "store").trim();
-  const amount = parseAmount(pick("金額", "總額", "消費金額", "amount"));
-  const category = pick("分類", "category").trim() || "其他";
-  if (!date || !store || amount <= 0) return null;
+  const date = normalizeDate(pick(["日期", "發票日期", "消費日期", "交易日期", "開立日期", "年月日", "date", "invDate", "invoiceDate"]));
+  const invoiceNumber = normalizeInvoiceNumber(pick(["發票號碼", "發票字軌號碼", "字軌號碼", "號碼", "invNum", "invoiceNumber", "number"]));
+  const seller = pick(["店家", "店名", "商店", "商店名稱", "營業人", "營業人名稱", "賣方", "賣方名稱", "開立人", "公司名稱", "store", "sellerName", "businessName"]).trim();
+  const amount = parseAmount(pick(["金額", "總額", "總金額", "發票金額", "消費金額", "交易金額", "銷售額", "含稅金額", "amount", "totalAmount", "salesAmount"]));
+  const category = pick(["分類", "category"]).trim() || guessInvoiceCategory(seller);
+  if (!date || amount <= 0) return null;
+  const store = seller || invoiceNumber || "電子發票";
   return {
     id: uid(),
-    store,
+    store: invoiceNumber && seller ? `${seller} ${invoiceNumber}` : store,
     amount,
     category,
     date,
     status: "new",
-    source: "csv",
+    source: "manual-import",
+    invoiceNumber,
   };
 }
 
-function parseCsv(text) {
+function decodeInvoiceFile(buffer) {
+  const bytes = buffer instanceof ArrayBuffer ? buffer : new ArrayBuffer(0);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    try {
+      return new TextDecoder("big5").decode(bytes);
+    } catch {
+      return new TextDecoder("utf-8").decode(bytes);
+    }
+  }
+}
+
+function parseDelimitedFile(text) {
+  const normalized = String(text || "").replace(/^\ufeff/, "");
+  const firstLine = normalized.split(/\r?\n/).find((line) => line.trim()) || "";
+  return parseDelimited(normalized, detectDelimiter(firstLine));
+}
+
+function detectDelimiter(line) {
+  const candidates = [",", "\t", ";"];
+  return candidates
+    .map((delimiter) => ({ delimiter, count: line.split(delimiter).length }))
+    .sort((a, b) => b.count - a.count)[0].delimiter;
+}
+
+function parseDelimited(text, delimiter) {
   const rows = [];
   let row = [];
   let value = "";
   let quoted = false;
-  const normalized = text.replace(/^\ufeff/, "");
 
-  for (let index = 0; index < normalized.length; index += 1) {
-    const char = normalized[index];
-    const next = normalized[index + 1];
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
     if (quoted) {
       if (char === '"' && next === '"') {
         value += '"';
@@ -670,7 +643,7 @@ function parseCsv(text) {
       }
     } else if (char === '"') {
       quoted = true;
-    } else if (char === ",") {
+    } else if (char === delimiter) {
       row.push(value);
       value = "";
     } else if (char === "\n") {
@@ -762,30 +735,30 @@ function uid() {
 }
 
 function parseAmount(value) {
-  const amount = Number.parseFloat(String(value || "").replace(/,/g, ""));
+  const amount = Number.parseFloat(String(value || "").replace(/,/g, "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(amount) ? Math.round(amount) : 0;
 }
 
 function normalizeDate(value) {
   const text = String(value || "").trim();
   if (!text) return "";
-  const match = text.match(/^(\d{4})[/-]?(\d{1,2})[/-]?(\d{1,2})$/);
+  const compactTaiwanDate = text.match(/^(\d{3})(\d{2})(\d{2})$/);
+  if (compactTaiwanDate) {
+    return `${Number(compactTaiwanDate[1]) + 1911}-${compactTaiwanDate[2]}-${compactTaiwanDate[3]}`;
+  }
+  const compactDate = text.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (compactDate) {
+    return `${compactDate[1]}-${compactDate[2]}-${compactDate[3]}`;
+  }
+  const match = text.match(/^(\d{2,4})\D+(\d{1,2})\D+(\d{1,2})/);
   if (!match) return text;
   const [, year, month, day] = match;
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const normalizedYear = Number(year) < 1911 ? Number(year) + 1911 : Number(year);
+  return `${normalizedYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
 function isoToday() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function firstDayOfCurrentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-function normalizeApiUrl(value) {
-  return String(value || "").trim().replace(/\/+$/, "");
 }
 
 function formatDateTime(value) {
@@ -813,4 +786,30 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;",
   })[char]);
+}
+
+function normalizeHeader(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_()（）:：\-.]/g, "");
+}
+
+function normalizeInvoiceNumber(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function normalizeComparableText(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function guessInvoiceCategory(store) {
+  const text = String(store || "");
+  if (/全聯|家樂福|便利商店|7-11|統一超商|全家|萊爾富|OK/.test(text)) return "購物";
+  if (/餐|咖啡|飲|麥當勞|肯德基|星巴克/.test(text)) return "餐飲";
+  if (/停車|加油|捷運|台鐵|高鐵|客運/.test(text)) return "交通";
+  return "其他";
 }

@@ -1,15 +1,21 @@
 補帳盒：手機正式使用方式
 
-要隨時隨地在手機使用，需要把這個資料夾上傳到一個 HTTPS 網址。
+要隨時隨地在手機使用，請使用 GitHub Pages 產生的 HTTPS 網址。
 不要使用 file:/// 或家中 Wi-Fi 的 192.168.x.x 網址當正式版。
 
-最快方式：Netlify Drop
-1. 打開 https://app.netlify.com/drop
-2. 把 accounting-app 這整個資料夾拖進網頁
-3. Netlify 會產生一個 https://...netlify.app 網址
-4. 用手機打開該網址
-5. iPhone：Safari 分享按鈕 -> 加入主畫面
-6. Android：Chrome 選單 -> 新增至主畫面 / 安裝應用程式
+目前正式網址
+https://joshchen0722.github.io/accounting-app/
+
+手機安裝
+1. 用手機打開上面的網址。
+2. iPhone：Safari 分享按鈕 -> 加入主畫面。
+3. Android：Chrome 選單 -> 新增至主畫面 / 安裝應用程式。
+
+發票匯入
+1. 到財政部電子發票平台手動下載發票 CSV。
+2. 回到補帳盒「發票」頁。
+3. 按「匯入官方下載檔」選 CSV。
+4. 匯入後先進待確認清單，按「確認」才會列為支出。
 
 資料保存
 1. 日常資料會存在手機瀏覽器本機。
