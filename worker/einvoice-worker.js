@@ -8,7 +8,8 @@ export default {
     if (request.method !== "POST" || url.pathname !== "/api/invoices") {
       return corsResponse({ ok: false, message: "Not found" }, 404);
     }
-    if (!env.EINVOICE_APP_ID) {
+    const appID = await readSecret(env.EINVOICE_APP_ID);
+    if (!appID) {
       return corsResponse({ ok: false, message: "尚未設定 EINVOICE_APP_ID" }, 500);
     }
 
@@ -37,7 +38,7 @@ export default {
       endDate,
       onlyWinningInv: "N",
       uuid: crypto.randomUUID(),
-      appID: env.EINVOICE_APP_ID,
+      appID,
     });
 
     const upstream = await fetch(EINVOICE_API, {
@@ -59,6 +60,13 @@ export default {
     return corsResponse({ ok: true, raw: payload, invoices: normalizeInvoices(payload) });
   },
 };
+
+async function readSecret(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value.get === "function") return await value.get();
+  return String(value);
+}
 
 function corsResponse(data, status = 200) {
   const headers = {
