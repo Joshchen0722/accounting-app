@@ -92,6 +92,14 @@ const els = {
   reportExpense: document.getElementById("reportExpense"),
   reportInvoices: document.getElementById("reportInvoices"),
   reportPending: document.getElementById("reportPending"),
+  transactionEditForm: document.getElementById("transactionEditForm"),
+  editTransactionId: document.getElementById("editTransactionId"),
+  editDateInput: document.getElementById("editDateInput"),
+  editAmountInput: document.getElementById("editAmountInput"),
+  editNoteInput: document.getElementById("editNoteInput"),
+  editCategoryInput: document.getElementById("editCategoryInput"),
+  editMethodInput: document.getElementById("editMethodInput"),
+  cancelEditButton: document.getElementById("cancelEditButton"),
   exportInvoicesButton: document.getElementById("exportInvoicesButton"),
   importInvoicesButton: document.getElementById("importInvoicesButton"),
   openEinvoiceButton: document.getElementById("openEinvoiceButton"),
@@ -240,8 +248,8 @@ function bindEvents() {
   });
 
   document.getElementById("seedButton").addEventListener("click", () => {
-    seedData();
-    saveAndRender();
+    switchView("quick");
+    els.amountInput.focus();
   });
 
   els.fixedForm.addEventListener("submit", (event) => {
@@ -299,6 +307,9 @@ function bindEvents() {
   });
   els.importBackupButton.addEventListener("click", () => els.backupFileInput.click());
   els.backupFileInput.addEventListener("change", importBackup);
+
+  els.transactionEditForm.addEventListener("submit", saveTransactionEdit);
+  els.cancelEditButton.addEventListener("click", hideTransactionEditor);
 }
 
 function switchView(view) {
@@ -539,6 +550,9 @@ function confirmInvoice(id) {
     category: item.category,
     method: "載具",
     date: item.date,
+    source: "invoice",
+    sourceInvoiceId: item.id,
+    invoiceNumber: item.invoiceNumber || "",
   });
   saveAndRender();
 }
@@ -563,29 +577,38 @@ function postFixedExpense(id) {
 function editTransaction(id) {
   const item = state.transactions.find((entry) => entry.id === id);
   if (!item) return;
+  els.editTransactionId.value = item.id;
+  els.editDateInput.value = normalizeDate(item.date);
+  els.editAmountInput.value = item.amount;
+  els.editNoteInput.value = item.note;
+  setSelectValue(els.editCategoryInput, item.category);
+  setSelectValue(els.editMethodInput, item.method);
+  els.transactionEditForm.classList.remove("hidden");
+  els.editDateInput.focus();
+}
 
-  const note = window.prompt("內容", item.note);
-  if (note === null) return;
-  const amountText = window.prompt("金額", String(item.amount));
-  if (amountText === null) return;
-  const amount = parseAmount(amountText);
+function saveTransactionEdit(event) {
+  event.preventDefault();
+  const item = state.transactions.find((entry) => entry.id === els.editTransactionId.value);
+  if (!item) return;
+  const amount = parseAmount(els.editAmountInput.value);
   if (amount <= 0) {
     window.alert("金額需要大於 0。");
     return;
   }
-  const category = window.prompt("分類", item.category);
-  if (category === null) return;
-  const method = window.prompt("付款", item.method);
-  if (method === null) return;
-  const date = window.prompt("日期", item.date);
-  if (date === null) return;
-
-  item.note = note.trim() || item.note;
+  item.date = normalizeDate(els.editDateInput.value) || item.date;
   item.amount = amount;
-  item.category = category.trim() || item.category;
-  item.method = method.trim() || item.method;
-  item.date = normalizeDate(date) || item.date;
+  item.note = els.editNoteInput.value.trim() || item.note;
+  item.category = els.editCategoryInput.value;
+  item.method = els.editMethodInput.value;
+  hideTransactionEditor();
   saveAndRender();
+}
+
+function hideTransactionEditor() {
+  els.transactionEditForm.reset();
+  els.editTransactionId.value = "";
+  els.transactionEditForm.classList.add("hidden");
 }
 
 function payInstallment(id) {
@@ -629,14 +652,6 @@ function sumTransactions(kind) {
   return state.transactions
     .filter((item) => item.kind === kind)
     .reduce((sum, item) => sum + item.amount, 0);
-}
-
-function seedData() {
-  state.transactions.unshift(
-    { id: uid(), kind: "income", note: "薪資", amount: 52000, category: "薪資", method: "轉帳", date: isoToday() },
-    { id: uid(), kind: "expense", note: "晚餐", amount: 180, category: "餐飲", method: "LINE Pay", date: isoToday() },
-  );
-  state.pending.unshift({ id: uid(), note: "蝦皮", amount: 0, category: "購物", method: "信用卡", date: isoToday(), source: "quick", done: false });
 }
 
 function renderEmpty(container) {
@@ -750,23 +765,64 @@ function importInvoicesFile(event) {
         .map((row) => invoiceFromCsvRow(header, row))
         .filter(Boolean));
       if (!imported.length) throw new Error("no invoice rows");
-      const existingKeys = new Set(state.invoices.map(invoiceKey));
-      const fresh = [];
+      const result = { added: 0, updated: 0, unchanged: 0 };
       imported.forEach((item) => {
-        const key = invoiceKey(item);
-        if (existingKeys.has(key)) return;
-        existingKeys.add(key);
-        fresh.push(item);
+        upsertImportedInvoice(item, result);
       });
-      state.invoices.unshift(...fresh);
       state.settings.lastInvoiceImportAt = new Date().toISOString();
       saveAndRender();
-      window.alert(`匯入完成：新增 ${fresh.length} 筆，略過重複 ${imported.length - fresh.length} 筆。`);
+      window.alert(`匯入完成：新增 ${result.added} 筆，更新 ${result.updated} 筆，未變更 ${result.unchanged} 筆。`);
     } catch (error) {
       window.alert(`無法匯入：${error.message}。請使用財政部下載的 CSV/文字檔，且內容需包含發票日期與金額。`);
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+function upsertImportedInvoice(item, result) {
+  const key = invoiceKey(item);
+  const existing = state.invoices.find((entry) => invoiceKey(entry) === key);
+  if (!existing) {
+    state.invoices.unshift(item);
+    result.added += 1;
+    return;
+  }
+
+  const changed = existing.store !== item.store
+    || existing.amount !== item.amount
+    || existing.date !== item.date
+    || existing.category !== item.category
+    || normalizeInvoiceNumber(existing.invoiceNumber) !== normalizeInvoiceNumber(item.invoiceNumber);
+  if (!changed) {
+    result.unchanged += 1;
+    return;
+  }
+
+  existing.store = item.store;
+  existing.amount = item.amount;
+  existing.date = item.date;
+  existing.category = item.category;
+  existing.invoiceNumber = item.invoiceNumber;
+  existing.source = item.source;
+  if (existing.status === "booked") updateBookedInvoiceTransaction(existing);
+  result.updated += 1;
+}
+
+function updateBookedInvoiceTransaction(invoice) {
+  const number = normalizeInvoiceNumber(invoice.invoiceNumber);
+  const transaction = state.transactions.find((item) => item.sourceInvoiceId === invoice.id)
+    || state.transactions.find((item) => item.method === "載具"
+      && item.date === invoice.date
+      && number
+      && normalizeComparableText(item.note).includes(normalizeComparableText(number)));
+  if (!transaction) return;
+  transaction.note = invoice.store;
+  transaction.amount = invoice.amount;
+  transaction.category = invoice.category;
+  transaction.date = invoice.date;
+  transaction.source = "invoice";
+  transaction.sourceInvoiceId = invoice.id;
+  transaction.invoiceNumber = invoice.invoiceNumber || "";
 }
 
 function findInvoiceHeaderIndex(rows) {
@@ -1091,6 +1147,15 @@ function normalizeInvoiceNumber(value) {
 
 function normalizeComparableText(value) {
   return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function setSelectValue(select, value) {
+  const text = String(value || "").trim();
+  const exists = Array.from(select.options).some((option) => option.value === text);
+  if (!exists && text) {
+    select.add(new Option(text, text));
+  }
+  select.value = text || select.options[0]?.value || "";
 }
 
 function guessInvoiceCategory(store) {

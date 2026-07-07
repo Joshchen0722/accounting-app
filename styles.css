@@ -258,6 +258,18 @@ select {
   line-height: 1.5;
 }
 
+.hidden {
+  display: none !important;
+}
+
+.edit-panel {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
 .storage-status {
   color: var(--muted);
   font-size: 12px;
