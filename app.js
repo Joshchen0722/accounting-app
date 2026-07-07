@@ -101,6 +101,13 @@ const els = {
   invoiceStoreInput: document.getElementById("invoiceStoreInput"),
   invoiceAmountInput: document.getElementById("invoiceAmountInput"),
   invoiceCategoryInput: document.getElementById("invoiceCategoryInput"),
+  fixedForm: document.getElementById("fixedForm"),
+  fixedName: document.getElementById("fixedName"),
+  fixedAmount: document.getElementById("fixedAmount"),
+  fixedDay: document.getElementById("fixedDay"),
+  fixedCategory: document.getElementById("fixedCategory"),
+  fixedMethod: document.getElementById("fixedMethod"),
+  fixedList: document.getElementById("fixedList"),
   installmentForm: document.getElementById("installmentForm"),
   installmentName: document.getElementById("installmentName"),
   installmentTotal: document.getElementById("installmentTotal"),
@@ -123,6 +130,7 @@ function init() {
   }).format(new Date());
 
   els.invoiceDateInput.value = isoToday();
+  els.fixedDay.value = String(new Date().getDate());
   bindEvents();
   render();
 }
@@ -236,6 +244,35 @@ function bindEvents() {
     saveAndRender();
   });
 
+  els.fixedForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = els.fixedName.value.trim();
+    const amount = parseAmount(els.fixedAmount.value);
+    const day = clampDay(els.fixedDay.value);
+    if (!name || amount <= 0) {
+      if (!name) els.fixedName.focus();
+      else els.fixedAmount.focus();
+      return;
+    }
+
+    state.fixedExpenses.unshift({
+      id: uid(),
+      name,
+      amount,
+      day,
+      category: els.fixedCategory.value,
+      method: els.fixedMethod.value,
+      active: true,
+      createdAt: isoToday(),
+      lastPostedMonth: "",
+    });
+    els.fixedForm.reset();
+    els.fixedDay.value = String(new Date().getDate());
+    els.fixedCategory.value = "居家";
+    els.fixedMethod.value = "信用卡";
+    saveAndRender();
+  });
+
   els.installmentForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const name = els.installmentName.value.trim();
@@ -277,6 +314,7 @@ function render() {
   renderSummary();
   renderPending();
   renderInvoices();
+  renderFixedExpenses();
   renderInstallments();
   renderReport();
   renderStorageInfo();
@@ -285,7 +323,7 @@ function render() {
 function renderSummary() {
   const income = sumTransactions("income");
   const expense = sumTransactions("expense");
-  const due = monthlyInstallments();
+  const due = monthlyInstallments() + monthlyFixedExpenses();
   els.monthBalance.textContent = money(income - expense - due);
   els.pendingCount.textContent = state.pending.filter((item) => !item.done).length;
   els.installmentDue.textContent = money(due);
@@ -346,6 +384,38 @@ function renderInvoices() {
   });
   els.invoiceList.querySelectorAll("[data-delete-invoice]").forEach((button) => {
     button.addEventListener("click", () => deleteById("invoices", button.dataset.deleteInvoice));
+  });
+}
+
+function renderFixedExpenses() {
+  const items = state.fixedExpenses || [];
+  if (!items.length) return renderEmpty(els.fixedList);
+
+  els.fixedList.innerHTML = items.map((item) => {
+    const posted = isFixedPostedThisMonth(item);
+    return `
+      <article class="item">
+        <div class="item-main">
+          <div class="item-title">
+            <span>${escapeHtml(item.name)}</span>
+            <span class="pill ${posted ? "" : "warn"}">${posted ? "已入帳" : "固定"}</span>
+          </div>
+          <div class="item-sub">每月 ${item.day || 1} 號 · ${escapeHtml(item.category)} · ${escapeHtml(item.method)}</div>
+        </div>
+        <div class="actions">
+          <div class="amount expense">${money(item.amount)}</div>
+          <button class="small-action primary-mini" data-post-fixed="${item.id}" type="button"${posted ? " disabled" : ""}>入帳</button>
+          <button class="small-action danger" data-delete-fixed="${item.id}" type="button">刪除</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  els.fixedList.querySelectorAll("[data-post-fixed]").forEach((button) => {
+    button.addEventListener("click", () => postFixedExpense(button.dataset.postFixed));
+  });
+  els.fixedList.querySelectorAll("[data-delete-fixed]").forEach((button) => {
+    button.addEventListener("click", () => deleteById("fixedExpenses", button.dataset.deleteFixed));
   });
 }
 
@@ -469,6 +539,23 @@ function confirmInvoice(id) {
   saveAndRender();
 }
 
+function postFixedExpense(id) {
+  const item = state.fixedExpenses.find((entry) => entry.id === id);
+  if (!item || isFixedPostedThisMonth(item)) return;
+  item.lastPostedMonth = currentMonthKey();
+  state.transactions.unshift({
+    id: uid(),
+    kind: "expense",
+    note: item.name,
+    amount: item.amount,
+    category: item.category,
+    method: item.method,
+    date: dateForThisMonth(item.day),
+    source: "fixed",
+  });
+  saveAndRender();
+}
+
 function payInstallment(id) {
   const item = state.installments.find((entry) => entry.id === id);
   if (!item || item.paid >= item.months) return;
@@ -496,6 +583,13 @@ function monthlyInstallments() {
   return state.installments.reduce((sum, item) => {
     if (item.paid >= item.months) return sum;
     return sum + item.total / item.months;
+  }, 0);
+}
+
+function monthlyFixedExpenses() {
+  return (state.fixedExpenses || []).reduce((sum, item) => {
+    if (isFixedPostedThisMonth(item)) return sum;
+    return sum + item.amount;
   }, 0);
 }
 
@@ -828,6 +922,7 @@ function importBackup(event) {
       state.transactions = imported.transactions || [];
       state.pending = imported.pending || [];
       state.invoices = imported.invoices || [];
+      state.fixedExpenses = imported.fixedExpenses || [];
       state.installments = imported.installments || [];
       state.settings = {
         ...(imported.settings || {}),
@@ -854,6 +949,7 @@ function loadState() {
     transactions: [],
     pending: [],
     invoices: [],
+    fixedExpenses: [],
     installments: [],
     settings: {},
   };
@@ -894,6 +990,30 @@ function normalizeDate(value) {
 
 function isoToday() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function currentMonthKey() {
+  return isoToday().slice(0, 7);
+}
+
+function isFixedPostedThisMonth(item) {
+  return item.lastPostedMonth === currentMonthKey();
+}
+
+function dateForThisMonth(day) {
+  const now = new Date();
+  const safeDay = Math.min(clampDay(day), daysInMonth(now.getFullYear(), now.getMonth()));
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
+}
+
+function daysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function clampDay(value) {
+  const day = Number.parseInt(value, 10);
+  if (!Number.isFinite(day)) return 1;
+  return Math.min(31, Math.max(1, day));
 }
 
 function formatDateTime(value) {

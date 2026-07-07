@@ -383,6 +383,11 @@ select {
   color: var(--red);
 }
 
+.small-action:disabled {
+  cursor: default;
+  opacity: .45;
+}
+
 .report-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

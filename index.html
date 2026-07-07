@@ -33,7 +33,7 @@
           <strong id="pendingCount">0</strong>
         </div>
         <div>
-          <span>分期</span>
+          <span>固定/分期</span>
           <strong id="installmentDue">$0</strong>
         </div>
       </section>
@@ -158,6 +158,55 @@
       </section>
 
       <section class="view" id="view-plan">
+        <form class="panel" id="fixedForm">
+          <h2>新增固定支出</h2>
+          <label>
+            <span>名稱</span>
+            <input id="fixedName" placeholder="例如 房租、保險、訂閱">
+          </label>
+          <div class="grid two">
+            <label>
+              <span>金額</span>
+              <input id="fixedAmount" inputmode="decimal" placeholder="1200">
+            </label>
+            <label>
+              <span>每月幾號</span>
+              <input id="fixedDay" inputmode="numeric" placeholder="5">
+            </label>
+          </div>
+          <div class="grid two">
+            <label>
+              <span>分類</span>
+              <select id="fixedCategory">
+                <option>居家</option>
+                <option>交通</option>
+                <option>購物</option>
+                <option>餐飲</option>
+                <option>旅宿</option>
+                <option>訂閱</option>
+                <option>保險</option>
+                <option>其他</option>
+              </select>
+            </label>
+            <label>
+              <span>付款</span>
+              <select id="fixedMethod">
+                <option>信用卡</option>
+                <option>中信信用卡</option>
+                <option>富邦信用卡</option>
+                <option>玉山信用卡</option>
+                <option>星展信用卡</option>
+                <option>LINE Pay</option>
+                <option>街口</option>
+                <option>轉帳</option>
+                <option>現金</option>
+              </select>
+            </label>
+          </div>
+          <button class="primary" type="submit">建立固定支出</button>
+        </form>
+        <div class="list" id="fixedList"></div>
+
         <form class="panel" id="installmentForm">
           <h2>新增分期</h2>
           <label>
