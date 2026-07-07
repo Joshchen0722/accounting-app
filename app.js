@@ -3,6 +3,71 @@ const STORAGE_KEY = "accountingApp.v1";
 const state = loadState();
 let quickKind = "expense";
 
+const DATE_HEADERS = [
+  "日期",
+  "發票日期",
+  "發票開立日期",
+  "開立日期",
+  "開立年月日",
+  "消費日期",
+  "交易日期",
+  "交易時間",
+  "年月日",
+  "date",
+  "invDate",
+  "invoiceDate",
+];
+const INVOICE_NUMBER_HEADERS = [
+  "發票號碼",
+  "發票字軌號碼",
+  "電子發票號碼",
+  "字軌號碼",
+  "號碼",
+  "invNum",
+  "invoiceNumber",
+  "number",
+];
+const INVOICE_PREFIX_HEADERS = ["發票字軌", "字軌", "字軌英文", "invPrefix"];
+const INVOICE_SERIAL_HEADERS = ["發票號碼", "號碼", "流水號", "invNumber", "invoiceSerial"];
+const SELLER_HEADERS = [
+  "店家",
+  "店名",
+  "店家名稱",
+  "商店",
+  "商店名稱",
+  "商家名稱",
+  "營業人",
+  "營業人名稱",
+  "賣方",
+  "賣方名稱",
+  "賣方營業人",
+  "賣方營業人名稱",
+  "開立人",
+  "公司名稱",
+  "store",
+  "sellerName",
+  "businessName",
+];
+const AMOUNT_HEADERS = [
+  "金額",
+  "總額",
+  "總金額",
+  "總計",
+  "總計金額",
+  "合計",
+  "合計金額",
+  "發票金額",
+  "發票總金額",
+  "消費金額",
+  "交易金額",
+  "銷售額",
+  "含稅金額",
+  "應付金額",
+  "amount",
+  "totalAmount",
+  "salesAmount",
+];
+
 const els = {
   todayLabel: document.getElementById("todayLabel"),
   monthBalance: document.getElementById("monthBalance"),
@@ -547,8 +612,10 @@ function importInvoicesFile(event) {
     try {
       const rows = parseDelimitedFile(decodeInvoiceFile(reader.result));
       if (rows.length < 2) throw new Error("empty csv");
-      const header = rows[0].map((cell) => cell.trim());
-      const imported = rows.slice(1)
+      const headerIndex = findInvoiceHeaderIndex(rows);
+      if (headerIndex < 0) throw new Error("missing required headers");
+      const header = rows[headerIndex].map((cell) => cell.trim());
+      const imported = rows.slice(headerIndex + 1)
         .map((row) => invoiceFromCsvRow(header, row))
         .filter(Boolean);
       if (!imported.length) throw new Error("no invoice rows");
@@ -564,24 +631,41 @@ function importInvoicesFile(event) {
       state.settings.lastInvoiceImportAt = new Date().toISOString();
       saveAndRender();
       window.alert(`匯入完成：新增 ${fresh.length} 筆，略過重複 ${imported.length - fresh.length} 筆。`);
-    } catch {
-      window.alert("無法匯入。請使用財政部下載的 CSV，或欄位包含「日期、店家、金額」的文字檔。");
+    } catch (error) {
+      window.alert(`無法匯入：${error.message}。請使用財政部下載的 CSV/文字檔，且內容需包含發票日期與金額。`);
     }
   };
   reader.readAsArrayBuffer(file);
 }
 
+function findInvoiceHeaderIndex(rows) {
+  return rows.findIndex((row) => {
+    const header = row.map((cell) => cell.trim());
+    const hasDate = findHeaderIndex(header, DATE_HEADERS) >= 0;
+    const hasAmount = findHeaderIndex(header, AMOUNT_HEADERS) >= 0;
+    const hasInvoice = findHeaderIndex(header, INVOICE_NUMBER_HEADERS) >= 0
+      || findHeaderIndex(header, INVOICE_PREFIX_HEADERS) >= 0;
+    const hasSeller = findHeaderIndex(header, SELLER_HEADERS) >= 0;
+    return hasDate && hasAmount && (hasInvoice || hasSeller);
+  });
+}
+
 function invoiceFromCsvRow(header, row) {
   const pick = (names) => {
-    const normalizedNames = names.map(normalizeHeader);
-    const normalizedHeader = header.map(normalizeHeader);
-    const index = normalizedHeader.findIndex((item) => normalizedNames.includes(item));
+    const index = findHeaderIndex(header, names);
     return index >= 0 ? row[index] : "";
   };
-  const date = normalizeDate(pick(["日期", "發票日期", "消費日期", "交易日期", "開立日期", "年月日", "date", "invDate", "invoiceDate"]));
-  const invoiceNumber = normalizeInvoiceNumber(pick(["發票號碼", "發票字軌號碼", "字軌號碼", "號碼", "invNum", "invoiceNumber", "number"]));
-  const seller = pick(["店家", "店名", "商店", "商店名稱", "營業人", "營業人名稱", "賣方", "賣方名稱", "開立人", "公司名稱", "store", "sellerName", "businessName"]).trim();
-  const amount = parseAmount(pick(["金額", "總額", "總金額", "發票金額", "消費金額", "交易金額", "銷售額", "含稅金額", "amount", "totalAmount", "salesAmount"]));
+  const date = normalizeDate(pick(DATE_HEADERS));
+  const invoicePrefix = pick(INVOICE_PREFIX_HEADERS);
+  const invoiceSerial = pick(INVOICE_SERIAL_HEADERS);
+  const invoiceRaw = pick(INVOICE_NUMBER_HEADERS);
+  const invoiceNumber = normalizeInvoiceNumber(
+    invoiceRaw && !/[A-Za-z]/.test(invoiceRaw) && invoicePrefix
+      ? `${invoicePrefix}${invoiceRaw}`
+      : invoiceRaw || `${invoicePrefix}${invoiceSerial}`,
+  );
+  const seller = pick(SELLER_HEADERS).trim();
+  const amount = parseAmount(pick(AMOUNT_HEADERS));
   const category = pick(["分類", "category"]).trim() || guessInvoiceCategory(seller);
   if (!date || amount <= 0) return null;
   const store = seller || invoiceNumber || "電子發票";
@@ -595,6 +679,14 @@ function invoiceFromCsvRow(header, row) {
     source: "manual-import",
     invoiceNumber,
   };
+}
+
+function findHeaderIndex(header, names) {
+  const normalizedNames = names.map(normalizeHeader);
+  const normalizedHeader = header.map(normalizeHeader);
+  const exactIndex = normalizedHeader.findIndex((item) => normalizedNames.includes(item));
+  if (exactIndex >= 0) return exactIndex;
+  return normalizedHeader.findIndex((item) => normalizedNames.some((name) => item.includes(name)));
 }
 
 function decodeInvoiceFile(buffer) {

@@ -110,11 +110,11 @@
           <div class="section-head compact">
             <h2>發票匯入</h2>
           </div>
-          <p class="helper-text">先從財政部平台手動下載發票 CSV，再匯入這裡。匯入後會放在待確認清單，按「確認」才會正式列為支出。</p>
+          <p class="helper-text">先從財政部平台手動下載發票 CSV 或文字檔，再匯入這裡。匯入後會放在待確認清單，按「確認」才會正式列為支出。</p>
           <div class="backup-actions">
             <button class="secondary" id="importInvoicesButton" type="button">匯入官方下載檔</button>
             <button class="ghost backup-import" id="openEinvoiceButton" type="button">開啟財政部平台</button>
-            <input id="invoiceFileInput" type="file" accept=".csv,.txt,text/csv,text/plain" hidden>
+            <input id="invoiceFileInput" type="file" accept=".csv,.txt,.tsv,.tab,text/csv,text/tab-separated-values,text/plain" hidden>
           </div>
           <div class="backup-actions cloud-actions">
             <button class="ghost backup-import" id="exportInvoicesButton" type="button">下載本機發票清單</button>
