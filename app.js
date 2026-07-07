@@ -49,6 +49,10 @@ const SELLER_HEADERS = [
   "businessName",
 ];
 const AMOUNT_HEADERS = [
+  "消費明細_金額",
+  "消費明細金額",
+  "明細金額",
+  "品項金額",
   "金額",
   "總額",
   "總金額",
@@ -67,6 +71,7 @@ const AMOUNT_HEADERS = [
   "totalAmount",
   "salesAmount",
 ];
+const DETAIL_NAME_HEADERS = ["消費明細_品名", "消費明細品名", "品名", "商品名稱", "明細品名", "itemName"];
 
 const els = {
   todayLabel: document.getElementById("todayLabel"),
@@ -615,9 +620,9 @@ function importInvoicesFile(event) {
       const headerIndex = findInvoiceHeaderIndex(rows);
       if (headerIndex < 0) throw new Error("missing required headers");
       const header = rows[headerIndex].map((cell) => cell.trim());
-      const imported = rows.slice(headerIndex + 1)
+      const imported = groupImportedInvoices(rows.slice(headerIndex + 1)
         .map((row) => invoiceFromCsvRow(header, row))
-        .filter(Boolean);
+        .filter(Boolean));
       if (!imported.length) throw new Error("no invoice rows");
       const existingKeys = new Set(state.invoices.map(invoiceKey));
       const fresh = [];
@@ -667,7 +672,8 @@ function invoiceFromCsvRow(header, row) {
   const seller = pick(SELLER_HEADERS).trim();
   const amount = parseAmount(pick(AMOUNT_HEADERS));
   const category = pick(["分類", "category"]).trim() || guessInvoiceCategory(seller);
-  if (!date || amount <= 0) return null;
+  const detailName = pick(DETAIL_NAME_HEADERS).trim();
+  if (!date || amount === 0) return null;
   const store = seller || invoiceNumber || "電子發票";
   return {
     id: uid(),
@@ -678,7 +684,44 @@ function invoiceFromCsvRow(header, row) {
     status: "new",
     source: "manual-import",
     invoiceNumber,
+    detailName,
   };
+}
+
+function groupImportedInvoices(items) {
+  const grouped = new Map();
+  const singles = [];
+  items.forEach((item) => {
+    const number = normalizeInvoiceNumber(item.invoiceNumber);
+    if (!number) {
+      singles.push(item);
+      return;
+    }
+    if (!grouped.has(number)) {
+      grouped.set(number, {
+        ...item,
+        amount: 0,
+        detailNames: [],
+      });
+    }
+    const current = grouped.get(number);
+    current.amount += item.amount;
+    if (item.detailName) current.detailNames.push(item.detailName);
+  });
+
+  return [
+    ...Array.from(grouped.values()).map((item) => {
+      const detailHint = item.detailNames.length > 1 ? ` 等 ${item.detailNames.length} 項` : "";
+      const store = item.store || "電子發票";
+      return {
+        ...item,
+        store: detailHint && !store.includes(detailHint) ? `${store}${detailHint}` : store,
+        detailNames: undefined,
+        detailName: undefined,
+      };
+    }),
+    ...singles,
+  ];
 }
 
 function findHeaderIndex(header, names) {
