@@ -658,7 +658,7 @@ function findInvoiceHeaderIndex(rows) {
 function invoiceFromCsvRow(header, row) {
   const pick = (names) => {
     const index = findHeaderIndex(header, names);
-    return index >= 0 ? row[index] : "";
+    return index >= 0 ? (row[index] ?? "") : "";
   };
   const date = normalizeDate(pick(DATE_HEADERS));
   const invoicePrefix = pick(INVOICE_PREFIX_HEADERS);
