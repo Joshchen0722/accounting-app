@@ -485,10 +485,14 @@ function renderReport() {
       </div>
       <div class="actions">
         <div class="amount ${item.kind}">${item.kind === "income" ? "+" : "-"}${money(item.amount)}</div>
+        <button class="small-action" data-edit-transaction="${item.id}" type="button">編輯</button>
         <button class="small-action danger" data-delete-transaction="${item.id}" type="button">刪除</button>
       </div>
     </article>
   `).join("");
+  els.transactionList.querySelectorAll("[data-edit-transaction]").forEach((button) => {
+    button.addEventListener("click", () => editTransaction(button.dataset.editTransaction));
+  });
   els.transactionList.querySelectorAll("[data-delete-transaction]").forEach((button) => {
     button.addEventListener("click", () => deleteById("transactions", button.dataset.deleteTransaction));
   });
@@ -553,6 +557,34 @@ function postFixedExpense(id) {
     date: dateForThisMonth(item.day),
     source: "fixed",
   });
+  saveAndRender();
+}
+
+function editTransaction(id) {
+  const item = state.transactions.find((entry) => entry.id === id);
+  if (!item) return;
+
+  const note = window.prompt("內容", item.note);
+  if (note === null) return;
+  const amountText = window.prompt("金額", String(item.amount));
+  if (amountText === null) return;
+  const amount = parseAmount(amountText);
+  if (amount <= 0) {
+    window.alert("金額需要大於 0。");
+    return;
+  }
+  const category = window.prompt("分類", item.category);
+  if (category === null) return;
+  const method = window.prompt("付款", item.method);
+  if (method === null) return;
+  const date = window.prompt("日期", item.date);
+  if (date === null) return;
+
+  item.note = note.trim() || item.note;
+  item.amount = amount;
+  item.category = category.trim() || item.category;
+  item.method = method.trim() || item.method;
+  item.date = normalizeDate(date) || item.date;
   saveAndRender();
 }
 
