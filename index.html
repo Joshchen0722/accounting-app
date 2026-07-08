@@ -46,6 +46,21 @@
         <button class="tab" data-view="report" type="button">月報</button>
       </nav>
 
+      <datalist id="categoryOptions">
+        <option value="餐飲"></option>
+        <option value="交通"></option>
+        <option value="購物"></option>
+        <option value="居家"></option>
+        <option value="旅宿"></option>
+        <option value="薪資"></option>
+        <option value="分期"></option>
+        <option value="訂閱"></option>
+        <option value="保險"></option>
+        <option value="醫療"></option>
+        <option value="寵物"></option>
+        <option value="其他"></option>
+      </datalist>
+
       <section class="view active" id="view-quick">
         <form class="panel" id="quickForm">
           <div class="segmented">
@@ -64,15 +79,7 @@
           <div class="grid two">
             <label>
               <span>分類</span>
-              <select id="categoryInput">
-                <option>餐飲</option>
-                <option>交通</option>
-                <option>購物</option>
-                <option>居家</option>
-                <option>旅宿</option>
-                <option>薪資</option>
-                <option>其他</option>
-              </select>
+              <input id="categoryInput" list="categoryOptions" value="餐飲">
             </label>
             <label>
               <span>付款</span>
@@ -143,14 +150,7 @@
           </label>
           <label>
             <span>分類</span>
-            <select id="invoiceCategoryInput">
-              <option>餐飲</option>
-              <option>交通</option>
-              <option>購物</option>
-              <option>居家</option>
-              <option>旅宿</option>
-              <option>其他</option>
-            </select>
+            <input id="invoiceCategoryInput" list="categoryOptions" value="餐飲">
           </label>
           <button class="primary" type="submit">加入發票</button>
         </form>
@@ -177,16 +177,7 @@
           <div class="grid two">
             <label>
               <span>分類</span>
-              <select id="fixedCategory">
-                <option>居家</option>
-                <option>交通</option>
-                <option>購物</option>
-                <option>餐飲</option>
-                <option>旅宿</option>
-                <option>訂閱</option>
-                <option>保險</option>
-                <option>其他</option>
-              </select>
+              <input id="fixedCategory" list="categoryOptions" value="居家">
             </label>
             <label>
               <span>付款</span>
@@ -272,18 +263,7 @@
             <div class="grid two">
               <label>
                 <span>分類</span>
-                <select id="editCategoryInput">
-                  <option>餐飲</option>
-                  <option>交通</option>
-                  <option>購物</option>
-                  <option>居家</option>
-                  <option>旅宿</option>
-                  <option>薪資</option>
-                  <option>分期</option>
-                  <option>訂閱</option>
-                  <option>保險</option>
-                  <option>其他</option>
-                </select>
+                <input id="editCategoryInput" list="categoryOptions">
               </label>
               <label>
                 <span>付款</span>

@@ -1151,6 +1151,10 @@ function normalizeComparableText(value) {
 
 function setSelectValue(select, value) {
   const text = String(value || "").trim();
+  if (!select.options) {
+    select.value = text;
+    return;
+  }
   const exists = Array.from(select.options).some((option) => option.value === text);
   if (!exists && text) {
     select.add(new Option(text, text));
