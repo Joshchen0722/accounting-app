@@ -72,6 +72,7 @@ const AMOUNT_HEADERS = [
   "salesAmount",
 ];
 const DETAIL_NAME_HEADERS = ["消費明細_品名", "消費明細品名", "品名", "商品名稱", "明細品名", "itemName"];
+const CATEGORY_SUGGESTIONS = ["餐飲", "交通", "購物", "居家", "旅宿", "薪資", "分期", "訂閱", "保險", "醫療", "寵物", "停車", "娛樂", "其他"];
 
 const els = {
   todayLabel: document.getElementById("todayLabel"),
@@ -139,8 +140,18 @@ function init() {
 
   els.invoiceDateInput.value = isoToday();
   els.fixedDay.value = String(new Date().getDate());
+  renderCategoryChips();
   bindEvents();
   render();
+}
+
+function renderCategoryChips() {
+  document.querySelectorAll("[data-category-target]").forEach((container) => {
+    const targetId = container.dataset.categoryTarget;
+    container.innerHTML = CATEGORY_SUGGESTIONS.map((category) => (
+      `<button class="category-chip" data-fill-category="${category}" data-target="${targetId}" type="button">${category}</button>`
+    )).join("");
+  });
 }
 
 function bindEvents() {
@@ -166,6 +177,15 @@ function bindEvents() {
       els.methodInput.value = method;
       els.amountInput.value = amount;
       els.noteInput.focus();
+    });
+  });
+
+  document.querySelectorAll("[data-fill-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = document.getElementById(button.dataset.target);
+      if (!input) return;
+      input.value = button.dataset.fillCategory;
+      input.focus();
     });
   });
 
