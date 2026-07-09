@@ -246,6 +246,26 @@
           <div id="categoryBars" class="bars"></div>
         </div>
         <div class="panel">
+          <div class="section-head compact">
+            <h2>目前資產</h2>
+            <strong id="assetTotal">$0</strong>
+          </div>
+          <form id="assetForm">
+            <div class="grid two">
+              <label>
+                <span>帳戶</span>
+                <input id="assetNameInput" placeholder="例如 郵局">
+              </label>
+              <label>
+                <span>餘額</span>
+                <input id="assetAmountInput" inputmode="decimal" placeholder="0">
+              </label>
+            </div>
+            <button class="primary" type="submit">新增/更新資產</button>
+          </form>
+          <div class="list tight asset-list" id="assetList"></div>
+        </div>
+        <div class="panel">
           <h2>最近紀錄</h2>
           <form class="edit-panel hidden" id="transactionEditForm">
             <input id="editTransactionId" type="hidden">

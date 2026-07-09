@@ -331,6 +331,10 @@ select {
   gap: 6px;
 }
 
+.asset-list {
+  margin-top: 12px;
+}
+
 .item {
   display: grid;
   grid-template-columns: 1fr auto;

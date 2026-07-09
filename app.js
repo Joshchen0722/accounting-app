@@ -1,5 +1,13 @@
 const STORAGE_KEY = "accountingApp.v1";
 
+const DEFAULT_ASSETS = [
+  { name: "郵局", amount: 37383 },
+  { name: "上海", amount: 44949 },
+  { name: "中信", amount: 7540 },
+  { name: "富邦", amount: 687 },
+  { name: "合庫", amount: 48518 },
+];
+
 const state = loadState();
 let quickKind = "expense";
 
@@ -93,6 +101,11 @@ const els = {
   reportExpense: document.getElementById("reportExpense"),
   reportInvoices: document.getElementById("reportInvoices"),
   reportPending: document.getElementById("reportPending"),
+  assetTotal: document.getElementById("assetTotal"),
+  assetForm: document.getElementById("assetForm"),
+  assetNameInput: document.getElementById("assetNameInput"),
+  assetAmountInput: document.getElementById("assetAmountInput"),
+  assetList: document.getElementById("assetList"),
   transactionEditForm: document.getElementById("transactionEditForm"),
   editTransactionId: document.getElementById("editTransactionId"),
   editDateInput: document.getElementById("editDateInput"),
@@ -328,6 +341,19 @@ function bindEvents() {
   els.importBackupButton.addEventListener("click", () => els.backupFileInput.click());
   els.backupFileInput.addEventListener("change", importBackup);
 
+  els.assetForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = els.assetNameInput.value.trim();
+    const amount = parseAmount(els.assetAmountInput.value);
+    if (!name) {
+      els.assetNameInput.focus();
+      return;
+    }
+    upsertAsset(name, amount);
+    els.assetForm.reset();
+    saveAndRender();
+  });
+
   els.transactionEditForm.addEventListener("submit", saveTransactionEdit);
   els.cancelEditButton.addEventListener("click", hideTransactionEditor);
 }
@@ -348,6 +374,7 @@ function render() {
   renderFixedExpenses();
   renderInstallments();
   renderReport();
+  renderAssets();
   renderStorageInfo();
 }
 
@@ -529,6 +556,33 @@ function renderReport() {
   });
 }
 
+function renderAssets() {
+  const assets = state.assets || [];
+  els.assetTotal.textContent = money(sumAssets());
+  if (!assets.length) return renderEmpty(els.assetList);
+
+  els.assetList.innerHTML = assets.map((item) => `
+    <article class="item">
+      <div class="item-main">
+        <div class="item-title"><span>${escapeHtml(item.name)}</span></div>
+        <div class="item-sub">資產餘額</div>
+      </div>
+      <div class="actions">
+        <div class="amount income">${money(item.amount)}</div>
+        <button class="small-action" data-edit-asset="${item.id}" type="button">更新</button>
+        <button class="small-action danger" data-delete-asset="${item.id}" type="button">刪除</button>
+      </div>
+    </article>
+  `).join("");
+
+  els.assetList.querySelectorAll("[data-edit-asset]").forEach((button) => {
+    button.addEventListener("click", () => updateAssetBalance(button.dataset.editAsset));
+  });
+  els.assetList.querySelectorAll("[data-delete-asset]").forEach((button) => {
+    button.addEventListener("click", () => deleteById("assets", button.dataset.deleteAsset));
+  });
+}
+
 function renderStorageInfo() {
   if (!els.storageStatus) return;
   const lastBackup = state.settings.lastBackupAt;
@@ -652,6 +706,36 @@ function deleteById(collection, id) {
   if (!window.confirm("確定刪除這筆資料嗎？")) return;
   state[collection] = state[collection].filter((item) => item.id !== id);
   saveAndRender();
+}
+
+function upsertAsset(name, amount) {
+  const existing = state.assets.find((item) => normalizeComparableText(item.name) === normalizeComparableText(name));
+  if (existing) {
+    existing.name = name;
+    existing.amount = amount;
+    existing.updatedAt = new Date().toISOString();
+    return;
+  }
+  state.assets.unshift({
+    id: uid(),
+    name,
+    amount,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function updateAssetBalance(id) {
+  const item = state.assets.find((entry) => entry.id === id);
+  if (!item) return;
+  const amount = window.prompt(`${item.name} 目前餘額`, String(item.amount));
+  if (amount === null) return;
+  item.amount = parseAmount(amount);
+  item.updatedAt = new Date().toISOString();
+  saveAndRender();
+}
+
+function sumAssets() {
+  return (state.assets || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
 }
 
 function monthlyInstallments() {
@@ -1030,6 +1114,7 @@ function importBackup(event) {
       state.transactions = imported.transactions || [];
       state.pending = imported.pending || [];
       state.invoices = imported.invoices || [];
+      state.assets = imported.assets || createDefaultAssets();
       state.fixedExpenses = imported.fixedExpenses || [];
       state.installments = imported.installments || [];
       state.settings = {
@@ -1057,6 +1142,7 @@ function loadState() {
     transactions: [],
     pending: [],
     invoices: [],
+    assets: createDefaultAssets(),
     fixedExpenses: [],
     installments: [],
     settings: {},
@@ -1067,6 +1153,15 @@ function loadState() {
   } catch {
     return fallback;
   }
+}
+
+function createDefaultAssets() {
+  return DEFAULT_ASSETS.map((item) => ({
+    id: `asset-${item.name}`,
+    name: item.name,
+    amount: item.amount,
+    updatedAt: "2026-07-09",
+  }));
 }
 
 function uid() {
